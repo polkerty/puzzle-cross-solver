@@ -1,0 +1,570 @@
+<html>
+
+<head>
+
+
+<script src="../jquery.js" ></script>
+
+<style>
+
+	table input {
+		width:50px;
+		padding:3px;
+	}
+	
+	table td {
+		border:1px solid black;
+	}
+	
+	table td.full {
+		background:black;
+	}
+	
+	table td.empty {
+		background:red;
+	}
+	
+	input {
+		padding:10px;
+		border-radius:3px;
+		box-shadow:3px 3px 3px #eee inset, 2px 2px 2px #888;
+		border:1px solid #ccc;
+		width:65px;
+	}
+	
+	input:focus {
+		background:#ffeecc;
+	}
+	
+	button {
+		background:white;
+		border-radius:3px;
+		border:1px solid #ccc;
+		padding:10px;
+	}
+	
+	button:hover {
+		background:#ffeecc;
+	}
+
+</style>
+
+</head>
+
+<body>
+
+<form action='javascript:genboard($("#size")[0].value*1)' >
+
+<label for="size" >Dimensions:</label>
+<input id='size' /><button onclick="$('form')[0].submit()" >Go</button>
+
+</form>
+
+<button onclick='PREFILL_10()' >Prefill @ 10 (Easy)</button>
+<button onclick='PREFILL_15()' >Prefill @ 15 (Hard)</button>
+<button onclick='solve()' >Solve</button>
+
+
+<div id='board_wrap' >
+
+</div>
+
+<script>
+	$("#size")[0].focus();
+</script>
+
+
+<script>
+
+
+SIZE = 0;
+BOARD = [], COL = [], ROW = [];
+
+function genboard(size) {
+
+	SIZE = size;
+	
+	var html = "<table id='pct' >\n<tr ><th></th>";
+	for ( var i=0; i<size; ++i ) {
+		html += "<th><input class='top' id='c" + i + "' /></th>\n";
+	}
+	html += "</tr>";
+	for ( var i=0; i<size; ++i ) {
+		html += "<tr>";
+		html += "<th><input class='side' id='r" + i + "' /></th>";
+		
+		for ( var j=0; j<size; ++j ) {
+			html += "<td id='row_" + i + "_col_" + j + "' ></td>";
+		}
+		html += "</tr>";
+	}
+	html += "</table>";
+	
+	$("#board_wrap")[0].innerHTML = html;
+}
+
+
+function PREFILL_10() {
+	SIZE = 10;
+	ROW = [[3], [3,2], [3,2], [2,2], [2], [2], [2,2], [2,2], [2,1,2,1], [9]];
+	COL = [[1,1], [3,5], [4,5], [2,1], [1,2], [1,1], [4,4], [1,2,4], [1], [1]];
+	
+	genboard(SIZE);
+	loadRowCol();
+	solve();
+	
+
+}
+
+
+function PREFILL_15() {
+	SIZE = 15;
+	ROW = [[5],[5],[9],[2,7,1],[2,1,2,2],[1,2,2,2],[2,2,2],[5,1,1,1],[2,2,2],[1,2,1,1],[2,1,4,2],[2,7,1],[9],[5],[5] ];
+	COL = [[7], [2,3,2], [2,1,2], [1,2,1,2,1], [2,1,1,1,2], [3,3], [4,3,4], [7,7], [6,1,5], [1,2,3,1], [2,3], [1,1], [3,2], [7], [1,1,1,1]];
+	
+	genboard(SIZE);
+	loadRowCol();
+	solve();
+	
+
+}
+
+function loadRowCol() {
+	rows = $(".side").toArray();
+	cols = $(".top").toArray();
+
+	for ( var i=0; i<SIZE; ++i ) {
+		cols[i].value = COL[i].join(",");
+		rows[i].value = ROW[i].join(",");
+	}
+
+}	
+
+function solve() {
+
+
+
+	var cols = COL = [], rows = ROW = [];
+	
+	var ans = [];
+	
+	
+	for ( var i=0; i<SIZE; ++i ) {
+		cols.push($(".top")[i].value.split(",").map(function(a){return a*1}));
+		rows.push($(".side")[i].value.split(",").map(function(a){return a*1}));
+		row = new Array(SIZE);
+		row.fill(0);
+		ans.push(row);
+		
+		BOARD = ans;
+	
+	}
+	
+	loadRowCol();
+
+	
+	for ( var i=0; i<SIZE; ++i ) {
+		var rowNeed = ROW[i].map(function(a){ return 1*a; }),
+			colNeed = COL[i].map(function(a){ return 1*a; });
+		var rowInit = init(rowNeed),
+			colInit = init(colNeed);
+			
+		for ( var c=0; c<SIZE; ++c ) {
+			if ( rowInit[c] > 0 ) {
+				BOARD[i][c] = 1;
+			}
+		}
+
+		for ( var r=0; r<SIZE; ++r ) {
+			if ( colInit[r] > 0 ) {
+				BOARD[r][i] = 1;
+			}
+		}
+	}
+	
+	//time to do some guessing on the rows
+	
+	render();
+	
+	iteratePossible();	
+	
+	render();
+
+	
+}
+
+function getCol(n) {
+	var col = [];
+	
+	for ( var i=0; i<SIZE; ++i ) {
+		col.push(BOARD[i][n]);
+	}
+	
+	return col;
+}
+
+function storeCol(n, col) {
+	for ( var i=0; i<SIZE; ++i ) {
+		BOARD[i][n] = col[i];
+	}
+}
+
+function iteratePossible() {
+	var affectedRows = [];
+	var affectedCols = [];
+	
+	function fillAffected() {
+	
+		for ( var i=0; i<SIZE; ++i ) {
+			for ( var j=0; j<SIZE; ++j ) {
+				if ( BOARD[i][j] ) {
+					if ( affectedRows.indexOf(i) == -1 ) {
+						affectedRows.push(i);
+					}
+					if ( affectedCols.indexOf(j) == -1 ) {
+						affectedCols.push(j);
+					}
+				}
+			}
+		}	
+	}
+	
+	fillAffected();
+	
+	var steps = 0;
+	while( (affectedRows.length || affectedCols.length)  ) {
+		//first deal with affected rows
+		
+		var _rows = 0, _cols = 0;
+		
+		while ( affectedRows.length  ) {
+			var rowIndex = affectedRows.pop();
+			
+			var rowNeed = ROW[rowIndex];
+			var rowData = BOARD[rowIndex];
+			
+			var newRow = narrowRowPossibilities(rowData, rowNeed);
+
+			
+			for ( var i = 0; i<SIZE; ++i ) {
+				if ( newRow[i] != rowData[i] && affectedCols.indexOf(i) == -1 ) {
+					affectedCols.push(i);
+				}
+			}
+			
+			BOARD[rowIndex] = newRow;
+			
+			console.log(affectedRows);
+			
+		}
+		
+		//var a = affectedRows.pop();
+		//console.log(a,ROW[a]);
+		
+		//affected cols
+	
+		while ( affectedCols.length ) {
+			var colIndex = affectedCols.pop();
+			
+			var colNeed = COL[colIndex];
+			var colData = getCol(colIndex);
+			
+			var newCol = narrowRowPossibilities(colData, colNeed);
+			
+			
+			for ( var i = 0; i<SIZE; ++i ) {
+				if ( newCol[i] != colData[i] && affectedRows.indexOf(i) == -1 ) {
+					affectedRows.push(i);
+				}
+			}
+			
+			storeCol(colIndex, newCol);
+			console.log(affectedCols);
+			
+		}
+	
+	
+	}
+
+}
+
+
+//	need = ROW[r].join(",").split(",");
+
+function init(need) {
+
+	// first fill in necessities based on contents
+	
+	// imagine everything packed in as tightly as possible from each side,
+	// and fill in overlap
+	
+	var imagineLeft = new Array(SIZE);
+	var imagineRight = new Array(SIZE);
+	
+	imagineLeft.fill(0);	
+	var width = need[0];
+	
+	for ( var i=1; i<need.length; ++i ) { 
+		width += need[i] + 1;
+	}
+	
+	var start = 0;
+	
+	for ( ; start + width - 1 < SIZE; ++start ) {
+		var pos = start;
+		for ( var i=0; i<need.length; ++i ) {
+			var n = need[i];
+			while ( n --> 0 ) {
+				++imagineLeft[pos++];			
+			}
+			++pos;
+		}
+		
+	
+	}
+		
+	var ret = new Array(SIZE);
+	ret.fill(0);
+	
+	for ( var i=0; i<SIZE; ++i ) {
+		if ( imagineLeft[i] == start ) {
+			ret[i] = 1;
+		}
+	}
+	
+	return ret;
+
+}
+
+// assumption: row is specified up to <to>
+function evaluateRow( row, need, to ) {
+	
+	if ( SIZE < row.length ) SIZE = row.length;
+	
+	var currentNeed = -1;
+	
+	var pos = 0;
+	
+	var ncnt = 0;
+	
+	while ( pos < to && currentNeed + 1 < need.length) {
+		
+		while ( pos < to && row[pos] != 1 ) {
+			++pos
+		}
+		
+		if ( pos < to ) {
+		
+			ncnt = 0;
+			++currentNeed;
+			if ( currentNeed >= need.length ) {
+				return false;
+			}
+			while ( pos < to && row[pos] == 1 ) {
+				
+				++ncnt;
+				
+				if ( need[currentNeed] < ncnt ) {
+					return false;
+				}
+				++pos;
+					
+			}
+			
+			if ( need[currentNeed] < ncnt ) {
+				return false;
+			}
+																								
+			if ( pos < to ) {																
+				if ( need[currentNeed] != ncnt ) {
+					return false;
+				}
+			}
+				
+		}
+		
+		if ( pos >= to ) {
+			//calculate if there's enough space left.
+			
+			var space_to_get = need[currentNeed] - ncnt;
+			if ( isNaN( space_to_get)  ) {
+				space_to_get = 0; // we hadn't started one yet
+			}
+			
+			for ( var u = currentNeed + 1; u < need.length; ++ u ) {
+				space_to_get += need[u] + 1;
+			}
+			
+			if ( currentNeed + 1 < need.length && row[pos - 1] == -1  ) {
+				--space_to_get;
+			}
+			
+			if ( space_to_get + pos > SIZE ) {
+				return false;
+			}
+		
+		}
+		
+		if ( pos < to && currentNeed + 1 == need.length ) {
+			while ( pos < to ) {
+				if (row[pos++] == 1 ) {
+					return false;
+				}
+			}
+			pos--;
+		}
+		
+		
+	}
+	
+	if ( currentNeed + 1 > need.length ) {
+		return false;
+	}
+	
+	
+	var space_to_get = currentNeed > -1
+		?	need[currentNeed] - ncnt
+		:	0;
+	
+	
+	for ( var u = currentNeed + 1; u < need.length; ++ u ) {
+		space_to_get += need[u] + 1;
+	}
+	
+	if ( currentNeed + 1 < need.length && row[pos - 1] == -1  ) {
+		--space_to_get;
+	}
+	
+	
+	if ( space_to_get + pos > SIZE ) {
+		return false;
+	}
+
+	
+	return true;
+
+}
+
+//https://stackoverflow.com/questions/8405453/is-there-a-shortcut-to-create-padded-array-in-javascript
+var pad_array = function(arr,len,fill) {
+  return arr.concat(Array(len).fill(fill)).slice(0,len);
+}
+
+function narrowRowPossibilities( row, need ) {
+	
+	if ( SIZE < row.length ) SIZE = row.length;
+	
+	row = row.map(function(a){return a});
+
+	var possible = [];
+	
+	//first find our entry point.
+	
+	var entryIndex = 0;
+	
+	var init = [];
+	
+	for ( ; entryIndex<row.length && row[entryIndex] != 0; entryIndex++ ) {
+		init.push(row[entryIndex]);
+	}
+	
+	// now let's toggle our entry point
+	
+	if ( entryIndex == SIZE ) {
+		return row;
+	}
+	
+	var up = init.concat(1);
+	var down = init.concat(-1);
+	
+	possible = [up, down];
+	
+	for ( var i = entryIndex + 1; i < SIZE; ++i ) {
+		if ( row[i] != 0 ) {
+			nposs = possible.map(function(a){return a.concat(row[i])});
+			
+			var np2 = [];
+			for ( var j = 0; j < nposs.length; ++j ) {
+				if ( evaluateRow( pad_array( nposs[j], SIZE, 0), need, nposs[j].length ) ) {
+					np2.push(nposs[j]);
+				}
+			}
+			
+			nposs = np2;
+		} else {
+			var nposs = [];
+			for ( var j=0; j<possible.length; ++j ) {
+				var up = possible[j].concat(1),
+					down = possible[j].concat(-1);
+					
+				if ( evaluateRow( pad_array(up, SIZE, 0), need, up.length )) {
+					nposs.push(up);
+				}
+				if ( evaluateRow( pad_array(down, SIZE, 0), need, down.length )) {
+					nposs.push(down);
+				}
+								
+			}
+		}
+		
+		possible = nposs;
+	}
+	
+	
+	var np2 = [];
+	for ( var j = 0; j < possible.length; ++j ) {
+		if ( evaluateRow( pad_array( possible[j], SIZE, 0), need, possible[j].length ) ) {
+			np2.push(possible[j]);
+		}
+	}
+	
+	possible = np2;
+			
+
+	
+	var ret = (new Array(SIZE)).fill(0);
+	
+	for ( var i = 0; i< possible.length; ++i ) {
+		for ( var j = 0; j < possible[i].length; ++j ) {
+			ret[j] += possible[i][j];
+		}
+	}
+	
+	for ( var i=0; i<ret.length; ++i ) {
+		ret[i] = ret[i] == -possible.length
+			?	-1
+			:	ret[i] == possible.length
+				?	1
+				:	0;
+				
+	}
+	return ret;
+	
+	
+}
+
+function render() {
+	
+	for ( var i=0; i<SIZE; ++i ) {
+		for ( var j=0; j<SIZE; ++j ) {
+			$("#row_" + i + "_col_" + j).
+				removeClass("full empty unknown").
+				addClass( 
+					BOARD[i][j] != 0
+						?	BOARD[i][j] > 0
+							? "full"
+							: "empty"
+						: 	"unknown"
+				);
+		}
+	}
+}
+
+
+
+</script>
+
+
+</body>
+
+</html>
